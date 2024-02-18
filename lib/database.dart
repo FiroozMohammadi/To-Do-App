@@ -7,13 +7,13 @@ class SQLHelper {
         id INTEGER PRIMARY KEY AUTOINCREMENT NOT NULL,
         title TEXT,
         description TEXT,
-        createdAt TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP
+        date TEXT,
       )
       """);
   }
 // id: the id of a item
 // title, description: name and description of your activity
-// created_at: the time that the item was created. It will be automatically handled by SQLite
+// created_at: the time that the item was created. It will be automatically handled b
 
   static Future<sql.Database> db() async {
     return sql.openDatabase(
@@ -26,10 +26,11 @@ class SQLHelper {
   }
 
   // Create new item (journal)
-  static Future<int> createItem(String title, String? description) async {
+  static Future<int> createItem(
+      String title, String? description, String? date) async {
     final db = await SQLHelper.db();
 
-    final data = {'title': title, 'description': description};
+    final data = {'title': title, 'description': description, 'date': date};
     final id = await db.insert('task', data,
         conflictAlgorithm: sql.ConflictAlgorithm.replace);
     return id;
@@ -50,14 +51,10 @@ class SQLHelper {
 
   // Update an item by id
   static Future<int> updateItem(
-      int id, String title, String? description) async {
+      int id, String title, String? description, String? date) async {
     final db = await SQLHelper.db();
 
-    final data = {
-      'title': title,
-      'description': description,
-      'createdAt': DateTime.now().toString()
-    };
+    final data = {'title': title, 'description': description, 'date': date};
 
     final result =
         await db.update('task', data, where: "id = ?", whereArgs: [id]);

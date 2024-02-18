@@ -1,9 +1,9 @@
 import 'package:flutter/material.dart';
 
 TextFormField myDialogTextField(String label, IconData sufixIcon,
-    TextEditingController userControl, TextInputType keyBoardType) {
+    TextEditingController userControl, VoidCallback onTap) {
   return TextFormField(
-    keyboardType: keyBoardType,
+    onTap: onTap,
     controller: userControl,
     decoration: InputDecoration(
       labelText: label,
@@ -13,7 +13,7 @@ TextFormField myDialogTextField(String label, IconData sufixIcon,
         size: 13,
       ),
       labelStyle: const TextStyle(
-        color: Colors.blue,
+        color: Colors.black,
         fontSize: 16,
       ),
     ),

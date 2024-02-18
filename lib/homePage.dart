@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:to_do_app/database.dart';
 import 'package:to_do_app/myWidgets.dart';
+import 'package:intl/intl.dart';
 
 class Home extends StatefulWidget {
   const Home({super.key});
@@ -11,9 +12,11 @@ class Home extends StatefulWidget {
 
 class _HomeState extends State<Home> {
   Set<int> _selectedIndices = {};
-  final TextEditingController _titleController = TextEditingController();
-  final TextEditingController _descriptionController = TextEditingController();
-  final DateTime now = DateTime.now();
+  TextEditingController titleController = TextEditingController();
+  TextEditingController descriptionController = TextEditingController();
+  final TextEditingController searchControler = TextEditingController();
+
+  TextEditingController dateInput = TextEditingController();
   //final String formattedDateTime = now.toIso8601String();
   List<Map<String, dynamic>> _journals = [];
 
@@ -24,13 +27,17 @@ class _HomeState extends State<Home> {
     setState(() {
       _journals = data;
       _isLoading = false;
+      titleController.clear();
+      descriptionController.clear();
+      dateInput.clear();
     });
   }
 
   @override
   void initState() {
     super.initState();
-    _refreshJournals(); // Loading the diary when the app starts
+    _refreshJournals();
+    // Loading the diary when the app starts
   }
 
   void _showForm(int? id) async {
@@ -39,8 +46,9 @@ class _HomeState extends State<Home> {
       // id != null -> update an existing item
       final existingJournal =
           _journals.firstWhere((element) => element['id'] == id);
-      _titleController.text = existingJournal['title'];
-      _descriptionController.text = existingJournal['description'];
+      titleController.text = existingJournal['title'];
+      descriptionController.text = existingJournal['description'];
+      dateInput.text = existingJournal['date'];
     }
     Future<void> _showAlertDialog() async {
       return showDialog<void>(
@@ -68,90 +76,134 @@ class _HomeState extends State<Home> {
     }
 
     showModalBottomSheet(
-        shape: const RoundedRectangleBorder(
-          // <-- SEE HERE
-          borderRadius: BorderRadius.vertical(
-            top: Radius.circular(20.0),
-          ),
+      shape: const RoundedRectangleBorder(
+        // <-- SEE HERE
+        borderRadius: BorderRadius.vertical(
+          top: Radius.circular(20.0),
         ),
-        context: context,
-        elevation: 5,
-        isScrollControlled: true,
-        builder: (_) => Container(
-              padding: EdgeInsets.only(
-                top: 15,
-                left: 15,
-                right: 15,
-                // this will prevent the soft keyboard from covering the text fields
-                bottom: MediaQuery.of(context).viewInsets.bottom + 30,
+      ),
+      context: context,
+      elevation: 5,
+      isScrollControlled: true,
+      builder: (BuildContext context) => Container(
+        padding: EdgeInsets.only(
+          top: 15,
+          left: 15,
+          right: 15,
+          // this will prevent the soft keyboard from covering the text fields
+          bottom: MediaQuery.of(context).viewInsets.bottom + 30,
+        ),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.end,
+          children: [
+            myDialogTextField('ُTitle', Icons.star, titleController, () {}),
+            const SizedBox(
+              height: 10,
+            ),
+            myDialogTextField(
+                'Description', Icons.star, descriptionController, () {}),
+            const SizedBox(
+              height: 10,
+            ),
+            myDialogTextField(
+              "Date",
+              Icons.star,
+              dateInput,
+              () async {
+                DateTime? pickedDate = await showDatePicker(
+                    context: context,
+                    initialDate: DateTime.now(),
+                    firstDate: DateTime(2020),
+                    lastDate: DateTime(2100));
+
+                if (pickedDate != null) {
+                  String formattedDate =
+                      DateFormat('yyyy-MM-dd').format(pickedDate);
+                  setState(() {
+                    dateInput.text = formattedDate;
+                  });
+                } else {}
+              },
+            ),
+            const SizedBox(
+              height: 20,
+            ),
+            SizedBox(
+              width: 100,
+              height: 45,
+              child: TextButton(
+                style: TextButton.styleFrom(backgroundColor: Colors.blue),
+                onPressed: () async {
+                  if (titleController.text.isEmpty ||
+                      descriptionController.text.isEmpty ||
+                      dateInput.text.isEmpty) {
+                    _showAlertDialog();
+                    return;
+                  }
+                  // Save new journal
+                  if (id == null) {
+                    await _addItem();
+                  }
+
+                  if (id != null) {
+                    await _updateItem(id);
+                  }
+
+                  // Clear the text fields
+                  titleController.text = '';
+                  descriptionController.text = '';
+                  dateInput.text = '';
+                  // Close the bottom sheet
+                  if (!mounted) return;
+                  Navigator.of(context).pop();
+                },
+                child: Text(
+                  id == null ? 'Save' : 'Update',
+                  style: const TextStyle(
+                      color: Colors.white,
+                      fontSize: 18,
+                      fontWeight: FontWeight.w400),
+                ),
               ),
-              child: Column(
-                mainAxisSize: MainAxisSize.min,
-                crossAxisAlignment: CrossAxisAlignment.end,
-                children: [
-                  myDialogTextField('ُTitle', Icons.star, _titleController,
-                      TextInputType.text),
-                  const SizedBox(
-                    height: 10,
-                  ),
-                  myDialogTextField('Description', Icons.star,
-                      _descriptionController, TextInputType.text),
-                  const SizedBox(
-                    height: 20,
-                  ),
-                  SizedBox(
-                    width: 100,
-                    height: 45,
-                    child: TextButton(
-                      style: TextButton.styleFrom(backgroundColor: Colors.blue),
-                      onPressed: () async {
-                        if (_titleController.text.isEmpty ||
-                            _descriptionController.text.isEmpty) {
-                          _showAlertDialog();
-                          return;
-                        }
-                        // Save new journal
-                        if (id == null) {
-                          await _addItem();
-                        }
+            )
+          ],
+        ),
+      ),
+    );
+  }
 
-                        if (id != null) {
-                          await _updateItem(id);
-                        }
+  void _runFilter(String enteredKeyword) {
+    List<Map<String, dynamic>> results = [];
+    if (enteredKeyword.isEmpty) {
+      // if the search field is empty or only contains white-space, we'll display all users
+      _refreshJournals();
+    } else {
+      results = _journals
+          .where((user) => user['title']
+              .toLowerCase()
+              .contains(enteredKeyword.toLowerCase()))
+          .toList();
+      // we use the toLowerCase() method to make it case-insensitive
+    }
 
-                        // Clear the text fields
-                        _titleController.text = '';
-                        _descriptionController.text = '';
-
-                        // Close the bottom sheet
-                        if (!mounted) return;
-                        Navigator.of(context).pop();
-                      },
-                      child: Text(
-                        id == null ? 'Save' : 'Update',
-                        style: const TextStyle(
-                            color: Colors.white,
-                            fontSize: 18,
-                            fontWeight: FontWeight.w400),
-                      ),
-                    ),
-                  )
-                ],
-              ),
-            ));
+    // Refresh the UI
+    setState(() {
+      _journals = results;
+    });
   }
 
 // Insert a new journal to the database
   Future<void> _addItem() async {
     await SQLHelper.createItem(
-        _titleController.text, _descriptionController.text);
+        titleController.text, descriptionController.text, dateInput.text);
     _refreshJournals();
   }
 
   // Update an existing journal
   Future<void> _updateItem(int id) async {
     await SQLHelper.updateItem(
-        id, _titleController.text, _descriptionController.text);
+        id, titleController.text, descriptionController.text, dateInput.text);
     _refreshJournals();
   }
 
@@ -182,6 +234,8 @@ class _HomeState extends State<Home> {
                     padding: const EdgeInsets.symmetric(
                         vertical: 20, horizontal: 10),
                     child: TextField(
+                      controller: searchControler,
+                      onChanged: (value) => _runFilter(value),
                       decoration: InputDecoration(
                         hintText: "Search",
                         prefixIcon: const Icon(
@@ -191,7 +245,7 @@ class _HomeState extends State<Home> {
                         filled: true,
                         fillColor: const Color.fromARGB(255, 249, 253, 252),
                         contentPadding: const EdgeInsets.symmetric(
-                            horizontal: 15, vertical: 15),
+                            horizontal: 10, vertical: 10),
                         enabledBorder: OutlineInputBorder(
                           borderSide: const BorderSide(color: Colors.blue),
                           borderRadius: BorderRadius.circular(8.0),
@@ -202,39 +256,6 @@ class _HomeState extends State<Home> {
                         ),
                       ),
                     ),
-                  ),
-                  Padding(
-                    padding: EdgeInsets.symmetric(horizontal: 30, vertical: 5),
-                    child: Row(
-                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                      crossAxisAlignment: CrossAxisAlignment.center,
-                      mainAxisSize: MainAxisSize.max,
-                      children: [
-                        InkWell(
-                          onTap: () {},
-                          child: const Text(
-                            "Today",
-                            style: TextStyle(
-                              fontSize: 16,
-                              fontWeight: FontWeight.w500,
-                            ),
-                          ),
-                        ),
-                        InkWell(
-                          onTap: () {},
-                          child: const Text(
-                            "All",
-                            style: TextStyle(
-                              fontSize: 16,
-                              fontWeight: FontWeight.w500,
-                            ),
-                          ),
-                        ),
-                      ],
-                    ),
-                  ),
-                  const SizedBox(
-                    height: 10,
                   ),
                   Expanded(
                     child: Padding(
@@ -277,8 +298,11 @@ class _HomeState extends State<Home> {
                                                     fontWeight:
                                                         FontWeight.w800),
                                               ),
+                                              const SizedBox(
+                                                height: 5,
+                                              ),
                                               Text(
-                                                _journals[index]['description'],
+                                                _journals[index]['date'],
                                                 style: const TextStyle(
                                                     fontSize: 14,
                                                     fontWeight:
@@ -296,7 +320,7 @@ class _HomeState extends State<Home> {
                                                   CrossAxisAlignment.center,
                                               mainAxisSize: MainAxisSize.max,
                                               children: [
-                                                InkWell(
+                                                GestureDetector(
                                                   onTap: () {},
                                                   child: const Icon(
                                                     Icons.share,
@@ -307,8 +331,9 @@ class _HomeState extends State<Home> {
                                                 const SizedBox(
                                                   width: 15,
                                                 ),
-                                                InkWell(
-                                                  onTap: () {},
+                                                GestureDetector(
+                                                  onTap: () => _showForm(
+                                                      _journals[index]['id']),
                                                   child: const Icon(
                                                     Icons.edit,
                                                     size: 24,
@@ -318,8 +343,9 @@ class _HomeState extends State<Home> {
                                                 const SizedBox(
                                                   width: 15,
                                                 ),
-                                                InkWell(
-                                                  onTap: () {},
+                                                GestureDetector(
+                                                  onTap: () => _deleteItem(
+                                                      _journals[index]['id']),
                                                   child: const Icon(
                                                     Icons.delete,
                                                     size: 24,
@@ -354,7 +380,7 @@ class _HomeState extends State<Home> {
                               },
                             )
                           : const Text(
-                              'ٔNot Found',
+                              'ٔNot any record',
                               style: TextStyle(fontSize: 24),
                             ),
                     ),
