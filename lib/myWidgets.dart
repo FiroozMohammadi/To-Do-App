@@ -19,3 +19,17 @@ TextFormField myDialogTextField(String label, IconData sufixIcon,
     ),
   );
 }
+
+SizedBox myIcon(IconData icon, Color color, VoidCallback onTap) {
+  return SizedBox(
+    width: 40,
+    child: GestureDetector(
+      onTap: onTap,
+      child: Icon(
+        icon,
+        size: 24,
+        color: color,
+      ),
+    ),
+  );
+}

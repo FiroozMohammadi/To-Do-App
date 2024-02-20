@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:to_do_app/database.dart';
 import 'package:to_do_app/myWidgets.dart';
 import 'package:intl/intl.dart';
+import 'package:share/share.dart';
 
 class Home extends StatefulWidget {
   const Home({super.key});
@@ -11,18 +12,18 @@ class Home extends StatefulWidget {
 }
 
 class _HomeState extends State<Home> {
-  Set<int> _selectedIndices = {};
+  final Set<int> _selectedIndices = {};
   TextEditingController titleController = TextEditingController();
   TextEditingController descriptionController = TextEditingController();
   final TextEditingController searchControler = TextEditingController();
-
+  int checkState = 0;
   TextEditingController dateInput = TextEditingController();
   //final String formattedDateTime = now.toIso8601String();
   List<Map<String, dynamic>> _journals = [];
 
   bool _isLoading = true;
   // This function is used to fetch all data from the database
-  void _refreshJournals() async {
+  void refreshList() async {
     final data = await SQLHelper.getItems();
     setState(() {
       _journals = data;
@@ -36,7 +37,7 @@ class _HomeState extends State<Home> {
   @override
   void initState() {
     super.initState();
-    _refreshJournals();
+    refreshList();
     // Loading the diary when the app starts
   }
 
@@ -49,8 +50,9 @@ class _HomeState extends State<Home> {
       titleController.text = existingJournal['title'];
       descriptionController.text = existingJournal['description'];
       dateInput.text = existingJournal['date'];
+      checkState = existingJournal['checkState'];
     }
-    Future<void> _showAlertDialog() async {
+    Future<void> showAlertDialog() async {
       return showDialog<void>(
         context: context,
         barrierDismissible: false, // user must tap button!
@@ -138,7 +140,7 @@ class _HomeState extends State<Home> {
                   if (titleController.text.isEmpty ||
                       descriptionController.text.isEmpty ||
                       dateInput.text.isEmpty) {
-                    _showAlertDialog();
+                    showAlertDialog();
                     return;
                   }
                   // Save new journal
@@ -177,7 +179,7 @@ class _HomeState extends State<Home> {
     List<Map<String, dynamic>> results = [];
     if (enteredKeyword.isEmpty) {
       // if the search field is empty or only contains white-space, we'll display all users
-      _refreshJournals();
+      refreshList();
     } else {
       results = _journals
           .where((user) => user['title']
@@ -193,18 +195,18 @@ class _HomeState extends State<Home> {
     });
   }
 
-// Insert a new journal to the database
+// Insert a new item to the database
   Future<void> _addItem() async {
-    await SQLHelper.createItem(
-        titleController.text, descriptionController.text, dateInput.text);
-    _refreshJournals();
+    await SQLHelper.createItem(titleController.text, descriptionController.text,
+        dateInput.text, checkState);
+    refreshList();
   }
 
-  // Update an existing journal
+  // Update an existing item
   Future<void> _updateItem(int id) async {
-    await SQLHelper.updateItem(
-        id, titleController.text, descriptionController.text, dateInput.text);
-    _refreshJournals();
+    await SQLHelper.updateItem(id, titleController.text,
+        descriptionController.text, dateInput.text, checkState);
+    refreshList();
   }
 
   // Delete an item
@@ -217,7 +219,7 @@ class _HomeState extends State<Home> {
         style: TextStyle(color: Colors.white),
       ),
     ));
-    _refreshJournals();
+    refreshList();
   }
 
   @override
@@ -264,8 +266,15 @@ class _HomeState extends State<Home> {
                           ? ListView.builder(
                               itemCount: _journals.length,
                               itemBuilder: (BuildContext context, index) {
-                                bool isChecked =
-                                    _selectedIndices.contains(index);
+                                void taskDetails() {
+                                  titleController.text =
+                                      _journals[index]['title'];
+                                  descriptionController.text =
+                                      _journals[index]['description'];
+                                  dateInput.text = _journals[index]['date'];
+                                  _updateItem(_journals[index]['id']);
+                                }
+
                                 return Padding(
                                   padding: const EdgeInsets.all(5),
                                   child: Container(
@@ -320,51 +329,50 @@ class _HomeState extends State<Home> {
                                                   CrossAxisAlignment.center,
                                               mainAxisSize: MainAxisSize.max,
                                               children: [
-                                                GestureDetector(
-                                                  onTap: () {},
-                                                  child: const Icon(
-                                                    Icons.share,
-                                                    size: 24,
-                                                    color: Colors.green,
-                                                  ),
-                                                ),
-                                                const SizedBox(
-                                                  width: 15,
-                                                ),
-                                                GestureDetector(
-                                                  onTap: () => _showForm(
+                                                myIcon(
+                                                    Icons.share, Colors.green,
+                                                    () {
+                                                  Share.share(_journals[index]
+                                                          ['title'] +
+                                                      "     " +
+                                                      _journals[index]
+                                                          ['description'] +
+                                                      "     " +
+                                                      _journals[index]['date']);
+                                                }),
+                                                myIcon(
+                                                  Icons.edit,
+                                                  Colors.blue,
+                                                  () => _showForm(
                                                       _journals[index]['id']),
-                                                  child: const Icon(
-                                                    Icons.edit,
-                                                    size: 24,
-                                                    color: Colors.blue,
-                                                  ),
                                                 ),
-                                                const SizedBox(
-                                                  width: 15,
-                                                ),
-                                                GestureDetector(
-                                                  onTap: () => _deleteItem(
+                                                myIcon(
+                                                  Icons.delete,
+                                                  Colors.redAccent,
+                                                  () => _deleteItem(
                                                       _journals[index]['id']),
-                                                  child: const Icon(
-                                                    Icons.delete,
-                                                    size: 24,
-                                                    color: Colors.redAccent,
-                                                  ),
-                                                ),
-                                                const SizedBox(
-                                                  width: 5,
                                                 ),
                                                 Checkbox(
-                                                  value: isChecked,
+                                                  value: _journals[index]
+                                                          ['checkState'] ==
+                                                      1,
                                                   onChanged: (bool? value) {
                                                     setState(() {
+                                                      _journals[index][
+                                                                  'checkState'] ==
+                                                              value!
+                                                          ? 1
+                                                          : 0;
                                                       if (value == true) {
                                                         _selectedIndices
                                                             .add(index);
+                                                        checkState = 1;
+                                                        taskDetails();
                                                       } else {
                                                         _selectedIndices
                                                             .remove(index);
+                                                        checkState = 0;
+                                                        taskDetails();
                                                       }
                                                     });
                                                   },

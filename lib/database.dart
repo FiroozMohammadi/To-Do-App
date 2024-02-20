@@ -8,6 +8,7 @@ class SQLHelper {
         title TEXT,
         description TEXT,
         date TEXT,
+        checkState INTEGER
       )
       """);
   }
@@ -27,10 +28,15 @@ class SQLHelper {
 
   // Create new item (journal)
   static Future<int> createItem(
-      String title, String? description, String? date) async {
+      String title, String? description, String? date, int? checkState) async {
     final db = await SQLHelper.db();
 
-    final data = {'title': title, 'description': description, 'date': date};
+    final data = {
+      'title': title,
+      'description': description,
+      'date': date,
+      'checkState': checkState,
+    };
     final id = await db.insert('task', data,
         conflictAlgorithm: sql.ConflictAlgorithm.replace);
     return id;
@@ -50,18 +56,23 @@ class SQLHelper {
   }
 
   // Update an item by id
-  static Future<int> updateItem(
-      int id, String title, String? description, String? date) async {
+  static Future<int> updateItem(int id, String title, String? description,
+      String? date, int? checkState) async {
     final db = await SQLHelper.db();
 
-    final data = {'title': title, 'description': description, 'date': date};
+    final data = {
+      'title': title,
+      'description': description,
+      'date': date,
+      'checkState': checkState
+    };
 
     final result =
         await db.update('task', data, where: "id = ?", whereArgs: [id]);
     return result;
   }
 
-  // Delete
+  // Delete data
   static Future<void> deleteItem(int id) async {
     final db = await SQLHelper.db();
     try {
